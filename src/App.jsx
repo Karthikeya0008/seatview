@@ -16,50 +16,62 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1a2e] text-white flex flex-col items-center justify-center gap-6 px-4">
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", background: "#0c1a2e", color: "white" }}>
 
-      <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight">SeatView ✈️</h1>
-        <p className="text-slate-400 mt-2 text-sm">Type your flight number and explore your seat in 3D</p>
+      {/* Navbar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px", borderBottom: "1px solid #1e3a5f", flexShrink: 0 }}>
+        <h1 style={{ fontSize: "20px", fontWeight: "bold" }}>SeatView ✈️</h1>
+        <form onSubmit={handleSearch} style={{ display: "flex", gap: "8px" }}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Flight number e.g. AI171"
+            style={{ padding: "8px 16px", borderRadius: "8px", background: "#112240", border: "1px solid #1e3a5f", color: "white", fontFamily: "monospace", fontSize: "14px", width: "260px", outline: "none" }}
+          />
+          <button
+            type="submit"
+            disabled={isLoading}
+            style={{ padding: "8px 20px", background: "#0ea5e9", color: "white", border: "none", borderRadius: "8px", fontWeight: "600", cursor: "pointer", fontSize: "14px" }}
+          >
+            {isLoading ? "..." : "Search"}
+          </button>
+        </form>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2 w-full max-w-md">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="e.g. AI171, 6E201, SG101"
-          className="flex-1 px-4 py-3 rounded-lg bg-[#112240] border border-[#1e3a5f] text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono text-sm"
-        />
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="px-6 py-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
-        >
-          {isLoading ? "..." : "Search"}
-        </button>
-      </form>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-
-      {flightData && (
-        <div className="bg-[#112240] border border-[#1e3a5f] rounded-xl p-5 w-full max-w-md space-y-2">
-          <p className="text-xs text-slate-500 uppercase tracking-widest">Flight Found ✅</p>
-          <p className="text-2xl font-bold font-mono">{flightData.flightNumber}</p>
-          <p className="text-slate-400 text-sm">{flightData.airline}</p>
-          <p className="text-sky-400 font-semibold">{flightData.from} → {flightData.to}</p>
-          <p className="text-slate-500 text-xs">Aircraft: {flightData.aircraft}</p>
-        </div>
+      {error && (
+        <p style={{ color: "#f87171", textAlign: "center", padding: "8px", flexShrink: 0 }}>{error}</p>
       )}
 
-      {flightData && (
-        <div className="w-full max-w-2xl">
-          <CabinViewer aircraftData={AIRCRAFT_MAP[flightData.aircraft]} />
+      {/* Main content */}
+      {!flightData ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "8px" }}>
+          <p style={{ fontSize: "48px" }}>✈️</p>
+          <p style={{ color: "#94a3b8" }}>Search a flight to explore the cabin in 3D</p>
+          <p style={{ color: "#475569", fontSize: "14px" }}>Try: AI171 · 6E201 · SG101</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+
+          {/* Left sidebar */}
+          <div style={{ width: "280px", flexShrink: 0, borderRight: "1px solid #1e3a5f", padding: "16px", display: "flex", flexDirection: "column", gap: "16px", overflowY: "auto" }}>
+            <div style={{ background: "#112240", borderRadius: "12px", padding: "16px" }}>
+              <p style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "2px" }}>Flight</p>
+              <p style={{ fontSize: "28px", fontWeight: "bold", fontFamily: "monospace" }}>{flightData.flightNumber}</p>
+              <p style={{ color: "#94a3b8", fontSize: "14px" }}>{flightData.airline}</p>
+              <p style={{ color: "#38bdf8", fontWeight: "600" }}>{flightData.from} → {flightData.to}</p>
+              <p style={{ color: "#64748b", fontSize: "12px" }}>Aircraft: {flightData.aircraft}</p>
+            </div>
+            <SeatInfoPanel />
+          </div>
+
+          {/* 3D Viewer */}
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+            <CabinViewer aircraftData={AIRCRAFT_MAP[flightData.aircraft]} />
+          </div>
+
         </div>
       )}
-
-      {flightData && <SeatInfoPanel />}
-
     </div>
   )
 }
