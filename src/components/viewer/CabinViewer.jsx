@@ -1,7 +1,12 @@
 import { useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls } from "@react-three/drei"
+import { OrbitControls, useGLTF } from "@react-three/drei"
 import { useSeatViewStore } from "../../store/useSeatViewStore"
+
+function CabinModel() {
+  const { scene } = useGLTF("/src/assets/models/cabin.glb")
+  return <primitive object={scene} />
+}
 
 function Seat({ position, rowNum, col, exitRows }) {
   const [hovered, setHovered] = useState(false)
@@ -37,7 +42,7 @@ function Seat({ position, rowNum, col, exitRows }) {
       onPointerOut={() => setHovered(false)}
     >
       <boxGeometry args={[0.4, 0.4, 0.4]} />
-      <meshStandardMaterial color={color} />
+      <meshStandardMaterial color={color} transparent opacity={0.8} />
     </mesh>
   )
 }
@@ -71,10 +76,11 @@ function CabinGrid({ aircraftData }) {
 
 export default function CabinViewer({ aircraftData }) {
   return (
-    <div className="w-full h-[400px] rounded-xl overflow-hidden border border-[#1e3a5f]">
+    <div className="w-full h-[500px] rounded-xl overflow-hidden border border-[#1e3a5f]">
       <Canvas camera={{ position: [0, 8, 8], fov: 60 }}>
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[5, 5, 5]} intensity={1} />
+        <ambientLight intensity={1} />
+        <directionalLight position={[5, 5, 5]} intensity={1.5} />
+        <CabinModel />
         <CabinGrid aircraftData={aircraftData} />
         <OrbitControls
           enablePan={true}
