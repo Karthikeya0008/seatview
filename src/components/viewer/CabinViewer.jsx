@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Canvas } from "@react-three/fiber"
+import { useRef } from "react"
+import { Canvas, useThree, useFrame } from "@react-three/fiber"
 import { OrbitControls, useGLTF } from "@react-three/drei"
 import { useSeatViewStore } from "../../store/useSeatViewStore"
 import * as THREE from "three"
@@ -8,30 +8,45 @@ function CabinModel() {
   const { scene } = useGLTF("/models/cabin.glb")
   const { setSelectedSeat } = useSeatViewStore()
 
+  const seatGroups = []
+  scene.traverse((child) => {
+    if (child.name.toLowerCase().includes("seats")) {
+      const pos = new THREE.Vector3()
+      child.getWorldPosition(pos)
+      seatGroups.push({ name: child.name, pos })
+    }
+  })
+
   const handleClick = (e) => {
     e.stopPropagation()
-    const mesh = e.object
-    const worldPos = new THREE.Vector3()
-    mesh.getWorldPosition(worldPos)
+    const clickPos = e.point
 
-    // Ignore non-seat clicks (doors, floor etc.)
-    if (Math.abs(worldPos.y) > 1.5) return
+    let nearest = null
+    let nearestDist = Infinity
+    seatGroups.forEach((seat) => {
+      const dist = clickPos.distanceTo(seat.pos)
+      if (dist < nearestDist) {
+        nearestDist = dist
+        nearest = seat
+      }
+    })
 
-    // Determine row from z position
-    // Front of cabin is z≈14, rows go back (decreasing z)
-    // Each row is ~0.76 units apart
-    const row = Math.max(1, Math.round((14 - worldPos.z) / 0.76) + 1)
+    if (!nearest || nearestDist > 1.5) return
 
-    // Determine column from x position
-    // Right side (x > 0) = D, E, F
-    // Left side (x < 0) = A, B, C
+    const row = Math.max(1, Math.min(32, Math.round((14 - nearest.pos.z) / 0.76) + 1))
+
     let col
-    if (worldPos.x > 0.5) col = "D"
-    else if (worldPos.x < -0.5) col = "A"
-    else col = "C" // near aisle
+    if (nearest.pos.x > 0) {
+      if (clickPos.x > 1.3) col = "F"
+      else if (clickPos.x > 1.0) col = "E"
+      else col = "D"
+    } else {
+      if (clickPos.x < -1.3) col = "A"
+      else if (clickPos.x < -1.0) col = "B"
+      else col = "C"
+    }
 
-    const seatId = `${Math.min(row, 32)}${col}`
-
+    const seatId = `${row}${col}`
     setSelectedSeat({
       id: seatId,
       row,
@@ -42,59 +57,106 @@ function CabinModel() {
       isMiddle: col === "B" || col === "E",
       zone: row <= 4 ? "Business" : "Economy",
     })
-
-    console.log("Selected:", seatId, worldPos)
   }
 
   return <primitive object={scene} onClick={handleClick} />
 }
-function CabinGrid({ aircraftData }) {
-  const { totalRows, columns, seatPitch, seatWidth, aisleWidth, exitRows } = aircraftData
-  const seats = []
 
-  columns.forEach((col, i) => {
-    const half = columns.length / 2
-    const side = i < half ? -1 : 1
-    const indexInSide = i < half ? i : i - half
-    const x = side * (aisleWidth / 2 + (indexInSide + 0.5) * seatWidth)
+function CameraController({ moveRef, controlsRef }) {
+  const { camera } = useThree()
 
-    for (let row = 1; row <= totalRows; row++) {
-      const z = -row * seatPitch
-      seats.push(
-        <Seat
-          key={`${row}${col}`}
-          position={[x, 0, z]}
-          rowNum={row}
-          col={col}
-          exitRows={exitRows}
-        />
-      )
+  useFrame(() => {
+    if (!moveRef.current) return
+
+    const speed = 0.08
+    const direction = new THREE.Vector3()
+
+    if (moveRef.current === "forward") direction.set(0, 0, -speed)
+    else if (moveRef.current === "backward") direction.set(0, 0, speed)
+    else if (moveRef.current === "left") direction.set(-speed, 0, 0)
+    else if (moveRef.current === "right") direction.set(speed, 0, 0)
+
+    direction.applyQuaternion(camera.quaternion)
+
+    camera.position.add(direction)
+    if (controlsRef.current) {
+      controlsRef.current.target.add(direction)
+      controlsRef.current.update()
     }
   })
 
-  return <>{seats}</>
+  return null
 }
+
 export default function CabinViewer({ aircraftData }) {
+  const moveRef = useRef(null)
+  const controlsRef = useRef(null)
+
+  const startMove = (dir) => moveRef.current = dir
+  const stopMove = () => moveRef.current = null
+
+  const btnStyle = {
+    background: "rgba(14, 165, 233, 0.8)",
+    border: "none",
+    borderRadius: "50%",
+    width: "48px",
+    height: "48px",
+    color: "white",
+    fontSize: "20px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    userSelect: "none",
+    backdropFilter: "blur(4px)",
+  }
+
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+
       <Canvas
-  style={{ width: "100%", height: "100%" }}
-  camera={{ position: [0, 0, 0], fov: 75 }}
->
-  <ambientLight intensity={1} />
-  <directionalLight position={[5, 5, 5]} intensity={1.5} />
-  <CabinModel />
-  {/* <CabinGrid aircraftData={aircraftData} /> */}
-  <OrbitControls
-    enablePan={true}
-    enableZoom={true}
-    enableRotate={true}
-    panSpeed={1.5}
-    zoomSpeed={1.2}
-    minDistance={1}
-    maxDistance={40}
-  />
-</Canvas>
+        style={{ width: "100%", height: "100%" }}
+        camera={{ position: [0, 0, 0], fov: 75 }}
+      >
+        <ambientLight intensity={1} />
+        <directionalLight position={[5, 5, 5]} intensity={1.5} />
+        <CabinModel />
+        <CameraController moveRef={moveRef} controlsRef={controlsRef} />
+        <OrbitControls
+          ref={controlsRef}
+          enablePan={true}
+          enableZoom={true}
+          enableRotate={true}
+          panSpeed={2}
+          zoomSpeed={1.5}
+          rotateSpeed={0.5}
+          minDistance={0.5}
+          maxDistance={40}
+          screenSpacePanning={true}
+          mouseButtons={{
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN,
+          }}
+        />
+      </Canvas>
+
+      {/* Navigation overlay */}
+      <div style={{ position: "absolute", bottom: "24px", left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+        <button style={btnStyle} onMouseDown={() => startMove("forward")} onMouseUp={stopMove} onMouseLeave={stopMove} onTouchStart={() => startMove("forward")} onTouchEnd={stopMove}>⬆</button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button style={btnStyle} onMouseDown={() => startMove("left")} onMouseUp={stopMove} onMouseLeave={stopMove} onTouchStart={() => startMove("left")} onTouchEnd={stopMove}>⬅</button>
+          <button style={btnStyle} onMouseDown={() => startMove("backward")} onMouseUp={stopMove} onMouseLeave={stopMove} onTouchStart={() => startMove("backward")} onTouchEnd={stopMove}>⬇</button>
+          <button style={btnStyle} onMouseDown={() => startMove("right")} onMouseUp={stopMove} onMouseLeave={stopMove} onTouchStart={() => startMove("right")} onTouchEnd={stopMove}>➡</button>
+        </div>
+      </div>
+
+      {/* Hint */}
+      <div style={{ position: "absolute", bottom: "24px", right: "24px", color: "rgba(148,163,184,0.7)", fontSize: "12px", textAlign: "right" }}>
+        <p>Hold arrows to move</p>
+        <p>Left drag to look around</p>
+      </div>
+
     </div>
   )
 }
